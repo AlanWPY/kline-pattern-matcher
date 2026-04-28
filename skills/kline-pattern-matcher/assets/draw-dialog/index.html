@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>K线图曲线匹配</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
+        background: #eef2f6;
+        color: #142033;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          linear-gradient(135deg, rgba(10, 42, 71, 0.08), transparent 36%),
+          linear-gradient(315deg, rgba(183, 145, 60, 0.14), transparent 32%),
+          #eef2f6;
+      }
+
+      main {
+        width: min(960px, 100%);
+        background: #ffffff;
+        border: 1px solid #d7e0ea;
+        border-radius: 8px;
+        box-shadow: 0 18px 50px rgba(16, 34, 52, 0.14);
+        overflow: hidden;
+      }
+
+      header {
+        padding: 22px 28px;
+        color: #ffffff;
+        background: linear-gradient(90deg, #09233b, #123f66);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        letter-spacing: 0;
+      }
+
+      header p {
+        margin: 8px 0 0;
+        color: #c8d8e8;
+        font-size: 14px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 1fr 260px;
+        gap: 22px;
+        padding: 24px;
+      }
+
+      canvas {
+        width: 100%;
+        height: 360px;
+        display: block;
+        border: 1px solid #d7e0ea;
+        border-radius: 6px;
+        background:
+          linear-gradient(#edf2f7 1px, transparent 1px),
+          linear-gradient(90deg, #edf2f7 1px, transparent 1px),
+          #fbfdff;
+        background-size: 48px 48px;
+        cursor: crosshair;
+      }
+
+      .controls {
+        display: grid;
+        gap: 16px;
+        align-content: start;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #24364c;
+      }
+
+      input {
+        width: 100%;
+        height: 40px;
+        border: 1px solid #c8d3df;
+        border-radius: 6px;
+        padding: 0 12px;
+        font: inherit;
+      }
+
+      button {
+        height: 42px;
+        border: 0;
+        border-radius: 6px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: #b9913c;
+        color: #09233b;
+      }
+
+      .secondary {
+        color: #123f66;
+        background: #e8eef5;
+      }
+
+      .status {
+        min-height: 38px;
+        color: #607086;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 760px) {
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        canvas {
+          height: 300px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>K线图曲线匹配</h1>
+        <p>按住鼠标或触屏绘制目标走势，选择返回条数后点击 Submit。</p>
+      </header>
+      <section class="workspace">
+        <canvas id="pad" width="720" height="360" aria-label="curve drawing pad"></canvas>
+        <aside class="controls">
+          <label>
+            匹配条数
+            <input id="topN" type="number" min="1" max="10" value="5" />
+          </label>
+          <button class="primary" id="submit" type="button">Submit</button>
+          <button class="secondary" id="clear" type="button">Clear</button>
+          <p class="status" id="status">请在左侧画布中绘制一条从左到右的走势曲线。</p>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      const canvas = document.querySelector("#pad");
+      const ctx = canvas.getContext("2d");
+      const statusEl = document.querySelector("#status");
+      const points = [];
+      let drawing = false;
+
+      function redraw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#b9913c";
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        if (points.length > 1) {
+          ctx.beginPath();
+          points.forEach((point, index) => {
+            if (index === 0) ctx.moveTo(point.x, point.y);
+            else ctx.lineTo(point.x, point.y);
+          });
+          ctx.stroke();
+        }
+      }
+
+      function addPoint(event) {
+        const rect = canvas.getBoundingClientRect();
+        const source = event.touches ? event.touches[0] : event;
+        points.push({
+          x: ((source.clientX - rect.left) / rect.width) * canvas.width,
+          y: ((source.clientY - rect.top) / rect.height) * canvas.height,
+        });
+        redraw();
+      }
+
+      function normalizeCurve(sampleSize = 48) {
+        if (points.length < 2) return [];
+        const sorted = [...points].sort((a, b) => a.x - b.x);
+        const result = [];
+        for (let i = 0; i < sampleSize; i += 1) {
+          const x = (i / (sampleSize - 1)) * canvas.width;
+          let j = 0;
+          while (j < sorted.length - 2 && x > sorted[j + 1].x) j += 1;
+          const left = sorted[j];
+          const right = sorted[Math.min(j + 1, sorted.length - 1)];
+          const ratio = right.x === left.x ? 0 : (x - left.x) / (right.x - left.x);
+          const y = left.y + (right.y - left.y) * ratio;
+          result.push(Math.max(0, Math.min(1, 1 - y / canvas.height)));
+        }
+        return result;
+      }
+
+      canvas.addEventListener("mousedown", (event) => {
+        drawing = true;
+        points.length = 0;
+        addPoint(event);
+      });
+      canvas.addEventListener("mousemove", (event) => {
+        if (drawing) addPoint(event);
+      });
+      window.addEventListener("mouseup", () => {
+        drawing = false;
+      });
+      canvas.addEventListener("touchstart", (event) => {
+        event.preventDefault();
+        drawing = true;
+        points.length = 0;
+        addPoint(event);
+      });
+      canvas.addEventListener("touchmove", (event) => {
+        event.preventDefault();
+        if (drawing) addPoint(event);
+      });
+      window.addEventListener("touchend", () => {
+        drawing = false;
+      });
+      document.querySelector("#clear").addEventListener("click", () => {
+        points.length = 0;
+        redraw();
+        statusEl.textContent = "画布已清空，请重新绘制。";
+      });
+      document.querySelector("#submit").addEventListener("click", async () => {
+        const curve = normalizeCurve();
+        if (curve.length < 2) {
+          statusEl.textContent = "曲线点太少，请先绘制一条完整走势。";
+          return;
+        }
+        const topN = Number(document.querySelector("#topN").value || 5);
+        const response = await fetch("/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ curve, topN }),
+        });
+        statusEl.textContent = response.ok
+          ? "已提交。请返回 Agent 对话继续生成匹配结果。"
+          : "提交失败，请检查本地服务是否仍在运行。";
+      });
+    </script>
+  </body>
+</html>

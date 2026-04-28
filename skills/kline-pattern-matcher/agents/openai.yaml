@@ -1,0 +1,4 @@
+interface:
+  display_name: "K线图曲线匹配"
+  short_description: "通过手绘曲线或参考股票区间匹配相似K线并生成结果图"
+  default_prompt: "请使用K线图曲线匹配skill，打开绘图页面或按股票代码和日期范围匹配相似K线。"

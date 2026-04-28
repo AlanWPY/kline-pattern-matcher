@@ -68,6 +68,37 @@ python scripts/build_sample_market.py
 - 纯静态 GitHub Pages 适合演示样本模式
 - 如果要让用户在公网环境下稳定使用自己的 Tushare Token，建议把同一套前端部署到 Vercel / Netlify，并额外提供一个无服务器代理接口
 
+## Agent Skill 安装与使用
+
+本仓库现在同时包含一个可安装的 Codex Skill：
+
+- Skill 路径：`skills/kline-pattern-matcher`
+- 功能：通过手绘曲线或指定股票日期区间，匹配相似 K 线走势，并生成包含股票代码、企业名称、K线图和成交量柱状图的 PNG 图片。
+- 默认数据：`skills/kline-pattern-matcher/assets/sample-market-snapshot.json`，离线可运行，不依赖 Tushare Token。
+
+安装方式：
+
+```bash
+git clone https://github.com/AlanWPY/kline-pattern-matcher.git
+```
+
+然后将 `skills/kline-pattern-matcher` 复制到 Codex 或兼容 Agent 的 skills 目录中，或者使用支持 GitHub skill 路径的 installer 直接安装该目录。
+
+常用命令：
+
+```bash
+# 打开本地绘图页面，提交后生成 outputs/query_curve.json
+python skills/kline-pattern-matcher/scripts/kline_match.py draw --top-n 5
+
+# 使用手绘曲线匹配相似 K 线
+python skills/kline-pattern-matcher/scripts/kline_match.py match-curve --curve-json skills/kline-pattern-matcher/outputs/query_curve.json --top-n 5
+
+# 使用指定股票在指定日期范围内的走势匹配其他股票
+python skills/kline-pattern-matcher/scripts/kline_match.py match-reference --code 600519 --start-date 2025-10-01 --end-date 2025-12-31 --top-n 5
+```
+
+输出文件位于 `skills/kline-pattern-matcher/outputs/`，其中 `match_summary.json` 保存匹配摘要，`match_*.png` 是 Agent 可直接返回给用户的结果图。
+
 ## 目录说明
 
 - `src/App.tsx`：主界面与交互流程
